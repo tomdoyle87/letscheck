@@ -1,0 +1,12 @@
+[Desktop Entry]
+# NOTE: Update the Exec path below with your correct username.
+# Example: /home/yourusername/letscheck/build/linux/x64/release/bundle/letscheck
+Name=LetsCheck
+Exec=/home/USER/letscheck/build/linux/x64/release/bundle/letscheck
+Icon=letscheck
+Type=Application
+Categories=Utility;
+Terminal=false
+StartupNotify=true
+DBusActivatable=true
+X-GNOME-UsesNotifications=true
