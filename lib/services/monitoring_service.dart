@@ -12,7 +12,7 @@ class MonitoringService {
 
   /// Initializes monitoring parameters
   void start() {
-    _notifications.show("System Active", "LetsCheck monitoring engine is listening for state changes.");
+  //_notifications.show("System Active", "LetsCheck monitoring engine is listening for state changes.");
   }
 
   /// Evaluates host update changes using type-safe custom App Enums.
