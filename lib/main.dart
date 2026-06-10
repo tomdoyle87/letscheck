@@ -1,78 +1,62 @@
 import 'dart:async';
-import 'dart:io' show Platform, Directory;
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, LicenseRegistry, LicenseEntryWithLineBreaks;
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart'
-    show kIsWeb, LicenseRegistry, LicenseEntryWithLineBreaks;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:letscheck/platform_interfaces/javascript/javascript.dart';
-import 'package:package_info_plus/package_info_plus.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:letscheck/providers/providers.dart';
-import 'package:letscheck/router.dart';
+
+// UI Windows & Tray controls
+import 'package:window_manager/window_manager.dart';
+import 'package:tray_manager/tray_manager.dart';
+import 'package:tray_manager/src/helpers/sandbox.dart' show runningInSandbox;
+
+// Storage, Platform Specs, Locales, Logging & Debugging
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:talker/talker.dart';
-import 'package:talker_riverpod_logger/talker_riverpod_logger.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:talker/talker.dart';
+import 'package:talker_riverpod_logger/talker_riverpod_logger.dart';
 
+// Timezone imports
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
-import 'package:window_manager/window_manager.dart';
-
-import 'package:tray_manager/tray_manager.dart';
-// ignore: implementation_imports
-import 'package:tray_manager/src/helpers/sandbox.dart' show runningInSandbox;
-
+// Internal Project Modules
+import 'package:letscheck/platform_interfaces/javascript/javascript.dart';
+import 'package:letscheck/providers/providers.dart'; 
+import 'package:letscheck/providers/params.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'notifications/plugin.dart';
+import 'services/notification_service.dart';
+import 'services/monitoring_service.dart';
 
+// Blending background definitions while hiding duplicates
+import 'providers/app_providers.dart' hide sharedPreferencesProvider, packageInfoProvider;
+
+import 'router.dart';
 import 'theme_data.dart';
 import 'background_service.dart' as bg_service;
 
-/// Streams are created so that app can respond to notification-related events
-/// since the plugin is initialized in the `main` function
 final StreamController<NotificationResponse> selectNotificationStream =
     StreamController<NotificationResponse>.broadcast();
 
 const MethodChannel platform = MethodChannel('jochum.dev/letscheck');
-
 const String portName = 'notification_send_port';
 
-/// layout.
 const double ultraWideLayoutThreshold = 1920;
-
 const double wideLayoutThreshold = 1200;
 
 Future<void> _configureLocalTimeZone() async {
-  if (kIsWeb || Platform.isLinux) {
-    return;
-  }
+  if (kIsWeb || Platform.isLinux) return;
+
   tz.initializeTimeZones();
-  if (Platform.isWindows) {
-    return;
-  }
+
+  if (Platform.isWindows) return;
+
   final String timeZoneName = await FlutterTimezone.getLocalTimezone();
   tz.setLocalLocation(tz.getLocation(timeZoneName));
-}
-
-Future<String> getAppConfigDirectory() async {
-  if (Platform.isLinux) {
-    var path = "";
-    if (Platform.environment.containsKey("XDG_CONFIG_HOME")) {
-      var xdgConfigHome = Platform.environment["XDG_CONFIG_HOME"]!;
-      path = "$xdgConfigHome/letscheck";
-    } else {
-      var documents = (await getApplicationDocumentsDirectory()).path;
-      path = "$documents/letscheck";
-    }
-    await Directory(path).create(recursive: true);
-    return path;
-  }
-
-  return (await getApplicationDocumentsDirectory()).path;
 }
 
 Future<void> main() async {
@@ -87,35 +71,29 @@ Future<void> main() async {
     await _configureLocalTimeZone();
   }
 
-  // Initialize shared preferences
   final prefs = await SharedPreferences.getInstance();
 
-  // Initialize window manager if not web
+  // ---------------- WINDOW MANAGER ----------------
   if (!kIsWeb && (Platform.isLinux || Platform.isMacOS || Platform.isWindows)) {
     await windowManager.ensureInitialized();
-    // await windowManager.setPreventClose(true);
-  }
+    await windowManager.setPreventClose(true);
 
-  await initializeDateFormatting(Intl.defaultLocale);
-
-  if (!kIsWeb) {
-    await grantNotificationPermission();
-  }
-
-  if (!kIsWeb && (Platform.isLinux || Platform.isMacOS || Platform.isWindows)) {
-    WindowOptions windowOptions = WindowOptions(
+    WindowOptions windowOptions = const WindowOptions(
       size: Size(800, 1000),
       center: false,
       backgroundColor: Colors.transparent,
       skipTaskbar: false,
-      titleBarStyle:
-          Platform.isWindows ? TitleBarStyle.normal : TitleBarStyle.hidden,
+      titleBarStyle: TitleBarStyle.normal,
     );
-    windowManager.waitUntilReadyToShow(windowOptions, () async {
-      await windowManager.show();
-      await windowManager.focus();
-    });
 
+    windowManager.waitUntilReadyToShow(windowOptions, () async {
+      // START MINIMIZED TO TRAY
+      await windowManager.hide();
+    });
+  }
+
+  // ---------------- TRAY MANAGER ----------------
+  if (!kIsWeb && (Platform.isLinux || Platform.isMacOS || Platform.isWindows)) {
     await trayManager.setIcon(
       Platform.isWindows
           ? 'assets/icons/letscheck.ico'
@@ -123,58 +101,98 @@ Future<void> main() async {
               ? 'io.github.jochumdev.letscheck'
               : 'assets/icons/letscheck.png',
     );
+
     if (!Platform.isWindows) {
       await trayManager.setTitle("LetsCheck");
     }
 
     Menu menu = Menu(
       items: [
-        MenuItem(
-          key: 'show_window',
-          label: 'Show Window',
-        ),
+        MenuItem(key: 'show_window', label: 'Show Window'),
         MenuItem.separator(),
-        MenuItem(
-          key: 'exit_app',
-          label: 'Exit App',
-        ),
+        MenuItem(key: 'exit_app', label: 'Exit App'),
       ],
     );
+
     await trayManager.setContextMenu(menu);
   }
 
-  final talker =
-      Talker(logger: TalkerLogger(formatter: ColoredLoggerFormatter()));
+  await initializeDateFormatting(Intl.defaultLocale);
 
+  // ---------------- LOGGING & RUNTIME SETUP ----------------
+  final talker = Talker(logger: TalkerLogger(formatter: ColoredLoggerFormatter()));
+  final jsRuntime = await initJavascriptRuntime();
+  final packageInfo = await PackageInfo.fromPlatform();
+
+  // ---------------- NOTIFICATION & BACKGROUND CHANNELS ----------------
+  final notificationService = NotificationService();
+  final monitoringService = MonitoringService(notificationService);
+
+  // 1. Hook up the local notifications configuration
+  await notificationService.init();
+
+  // 2. STABILIZATION FIX: spin up background communication channels before UI states load
   await bg_service.initialize(talker);
   bg_service.start();
 
-  final jsRuntime = await initJavascriptRuntime();
+  // 3. Begin tracking tasks
+  monitoringService.start();
 
-  final packageInfo = await PackageInfo.fromPlatform();
+  // ---------------- APPLICATION INJECTION ----------------
+  // Explicitly creating a standalone ProviderContainer fixes the ".container" compilation error
+  final container = ProviderContainer(
+    observers: [
+      TalkerRiverpodObserver(
+        settings: TalkerRiverpodLoggerSettings(
+          enabled: true,
+          printProviderAdded: true,
+          printProviderUpdated: false,
+          printProviderDisposed: true,
+          printProviderFailed: true,
+        ),
+        talker: talker,
+      ),
+    ],
+    overrides: [
+      talkerProvider.overrideWithValue(talker),
+      sharedPreferencesProvider.overrideWithValue(prefs),
+      javascriptRuntimeProvider.overrideWithValue(jsRuntime),
+      packageInfoProvider.overrideWithValue(packageInfo),
+      notificationServiceProvider.overrideWithValue(notificationService),
+      monitoringServiceProvider.overrideWithValue(monitoringService),
+    ],
+  );
 
+  // Passing the standalone container to UncontrolledProviderScope binds it to the UI
   runApp(
-    ProviderScope(
-      observers: [
-        TalkerRiverpodObserver(
-            settings: TalkerRiverpodLoggerSettings(
-              enabled: true,
-              printProviderAdded: true,
-              printProviderUpdated: false,
-              printProviderDisposed: true,
-              printProviderFailed: true,
-            ),
-            talker: talker),
-      ],
-      overrides: [
-        talkerProvider.overrideWithValue(talker),
-        sharedPreferencesProvider.overrideWithValue(prefs),
-        javascriptRuntimeProvider.overrideWithValue(jsRuntime),
-        packageInfoProvider.overrideWithValue(packageInfo),
-      ],
+    UncontrolledProviderScope(
+      container: container,
       child: const App(),
     ),
   );
+
+  // ---------------- BACKGROUND ENGINE FORCE TRIGGER ----------------
+  // Warm up the monitoring engine
+  container.read(monitoringServiceProvider);
+
+  // Wake up data collection streams for all registered Checkmk connections
+  final settings = container.read(settingsProvider);
+  if (settings.connections.isNotEmpty) {
+    for (final connection in settings.connections) {
+      final monitorParams = AliasAndFilterParams(
+        alias: connection.alias,
+        filter: const [], // FIX: Passed an empty array instead of a string to match List<String>
+      );
+
+      // Listening forces Riverpod to keep the timer loops running continuously in memory
+      container.listen(
+        hostsProvider(monitorParams), 
+        (previous, next) {
+          // No-op closure keeps the provider channel alive in the background tray
+        },
+      );
+    }
+  }
 }
 
 class App extends ConsumerStatefulWidget {
@@ -184,13 +202,43 @@ class App extends ConsumerStatefulWidget {
   ConsumerState<App> createState() => _AppState();
 }
 
-class _AppState extends ConsumerState<App> with TrayListener {
+class _AppState extends ConsumerState<App> with TrayListener, WindowListener {
+
   @override
   void initState() {
     super.initState();
-    if (!kIsWeb &&
-        (Platform.isLinux || Platform.isMacOS || Platform.isWindows)) {
+    if (!kIsWeb && (Platform.isLinux || Platform.isMacOS || Platform.isWindows)) {
       trayManager.addListener(this);
+      windowManager.addListener(this);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (!kIsWeb && (Platform.isLinux || Platform.isMacOS || Platform.isWindows)) {
+      trayManager.removeListener(this);
+      windowManager.removeListener(this);
+    }
+    super.dispose();
+  }
+
+  @override
+  void onWindowClose() async {
+    await windowManager.hide();
+  }
+
+  @override
+  Future<void> onWindowMinimize() async {
+    await windowManager.hide();
+  }
+
+  @override
+  Future<void> onTrayMenuItemClick(MenuItem menuItem) async {
+    if (menuItem.key == 'show_window' || menuItem.key == 'show') {
+      await windowManager.show();
+      await windowManager.focus();
+    } else if (menuItem.key == 'exit_app' || menuItem.key == 'exit') {
+      await windowManager.destroy();
     }
   }
 
@@ -207,25 +255,5 @@ class _AppState extends ConsumerState<App> with TrayListener {
       darkTheme: AppTheme.dark,
       themeMode: isLightMode ? ThemeMode.light : ThemeMode.dark,
     );
-  }
-
-  @override
-  void dispose() {
-    if (!kIsWeb &&
-        (Platform.isLinux || Platform.isMacOS || Platform.isWindows)) {
-      trayManager.removeListener(this);
-    }
-    super.dispose();
-  }
-
-  @override
-  Future<void> onTrayMenuItemClick(MenuItem menuItem) async {
-    if (menuItem.key == 'show_window') {
-      await windowManager.show();
-    } else if (menuItem.key == 'hide_window') {
-      await windowManager.hide();
-    } else if (menuItem.key == 'exit_app') {
-      await windowManager.destroy();
-    }
   }
 }
