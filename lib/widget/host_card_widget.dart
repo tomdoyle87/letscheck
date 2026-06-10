@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-
 import 'package:go_router/go_router.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-
 import 'package:checkmk_api/checkmk_api.dart' as cmk_api;
 
 class HostCardWidget extends StatelessWidget {
@@ -19,8 +17,7 @@ class HostCardWidget extends StatelessWidget {
         icon = Icon(Icons.check, color: Colors.green);
         break;
       case cmk_api.hostStateUnreachable:
-        icon =
-            FaIcon(FontAwesomeIcons.triangleExclamation, color: Colors.yellow);
+        icon = FaIcon(FontAwesomeIcons.triangleExclamation, color: Colors.yellow);
         break;
       case cmk_api.hostStateDown:
         icon = FaIcon(FontAwesomeIcons.ban, color: Colors.red);
@@ -30,19 +27,27 @@ class HostCardWidget extends StatelessWidget {
         break;
     }
 
+    // Logic to determine the best display name
+    String getDisplayText() {
+      if (host.alias != null && host.alias!.isNotEmpty && host.alias != host.hostName) {
+        return '${host.alias} - ${host.hostName}';
+      }
+      if (host.displayName != null && host.displayName!.isNotEmpty && host.displayName != host.hostName) {
+        return '${host.displayName} - ${host.hostName}';
+      }
+      return host.hostName ?? 'Unknown';
+    }
+
     return Card(
         child: Padding(
       padding: const EdgeInsets.fromLTRB(20, 5, 20, 5),
       child: Row(
         children: [
-          Expanded(
-            flex: 2,
-            child: icon,
-          ),
+          Expanded(flex: 2, child: icon),
           Expanded(
             flex: 20,
             child: SelectableText(
-              host.hostName!,
+              getDisplayText(),
               style: Theme.of(context).textTheme.labelLarge,
             ),
           ),
@@ -50,14 +55,10 @@ class HostCardWidget extends StatelessWidget {
             flex: 2,
             child: IconButton(
               onPressed: () {
-                context.push(
-                    '/conn/$alias/host/${Uri.encodeComponent(host.hostName!)}');
+                context.push('/conn/$alias/host/${Uri.encodeComponent(host.hostName!)}');
               },
               tooltip: "Goto host",
-              icon: Icon(
-                Icons.arrow_forward_ios,
-                size: 20,
-              ),
+              icon: Icon(Icons.arrow_forward_ios, size: 20),
             ),
           ),
         ],
