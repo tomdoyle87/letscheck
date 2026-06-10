@@ -175,6 +175,8 @@ class Notifier {
 
   static Notifier instance = Notifier._internal();
 
+  NavigatorState? get navigatorKey => null;
+
   Notifier._internal();
 
   void setServiceAndListen(ServiceInstance service) {
@@ -204,18 +206,25 @@ class Notifier {
     var title = '${log.hostName} : ${log.displayName}';
     var body = log.pluginOutput;
 
+    // Determine urgency level context based on Checkmk log state parameters
+    LinuxNotificationUrgency linuxUrgency = LinuxNotificationUrgency.normal;
+
     switch (log.state) {
       case cmk_api.svcStateOk:
         title = 'OK: $title';
+        linuxUrgency = LinuxNotificationUrgency.low;
         break;
       case cmk_api.svcStateWarn:
         title = 'WARN: $title';
+        linuxUrgency = LinuxNotificationUrgency.normal;
         break;
       case cmk_api.svcStateCritical:
         title = 'CRIT: $title';
+        linuxUrgency = LinuxNotificationUrgency.critical;
         break;
       default:
         title = 'UNKN: $title';
+        linuxUrgency = LinuxNotificationUrgency.normal;
     }
 
     const androidNotificationDetails = AndroidNotificationDetails(
@@ -237,7 +246,14 @@ class Notifier {
 
     WindowsNotificationDetails windowsNotificationDetails =
         WindowsNotificationDetails(
-          images: [], // WindowsImage(WindowsImage.getAssetUri('assets/icons/letscheck.png'), altText: 'LetsCheck')
+      images: [], 
+    );
+
+    // FIXED FOR GNOME BACKGROUND SUSPENSION: Explicitly declaring Linux platform parameters
+    final LinuxNotificationDetails linuxNotificationDetails = LinuxNotificationDetails(
+      urgency: linuxUrgency,
+      // Supplying an explicit default action bypasses desktop manager suppression loops
+      defaultActionName: 'Open LetsCheck',
     );
 
     var notificationDetails = NotificationDetails(
@@ -245,6 +261,7 @@ class Notifier {
       macOS: macOSNotificationDetails,
       iOS: iosNotificationDetails,
       windows: windowsNotificationDetails,
+      linux: linuxNotificationDetails, // Injected missing key mapping path
     );
 
     await flutterLocalNotificationsPlugin.show(
@@ -341,8 +358,6 @@ class Notifier {
   Future<void> _settings(Map<String, dynamic>? settings) async {
     if (settings == null) return;
 
-    // await mutex.protect(() async {
-    // read settings.
     var recreate = false;
     if (settings.containsKey("refresh_seconds")) {
       recreate = refreshSeconds != settings["refresh_seconds"];
@@ -392,7 +407,6 @@ class Notifier {
         (timer) async => await _fetchAndRunNotifications(),
       );
     }
-    // });
 
     _log("Notifier got settings");
   }

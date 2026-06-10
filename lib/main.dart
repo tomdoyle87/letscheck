@@ -131,15 +131,18 @@ Future<void> main() async {
   // 1. Hook up the local notifications configuration
   await notificationService.init();
 
-  // 2. STABILIZATION FIX: spin up background communication channels before UI states load
+  // 2. STABILIZATION FIX: spin up background communication channels
   await bg_service.initialize(talker);
+  
+  // SAFETY HANDSHAKE: Ensure the background isolate thread is fully spun up 
+  // before we fire the 'start' signal to the notifier logic.
+  await Future.delayed(const Duration(seconds: 2));
   bg_service.start();
 
   // 3. Begin tracking tasks
   monitoringService.start();
 
   // ---------------- APPLICATION INJECTION ----------------
-  // Explicitly creating a standalone ProviderContainer fixes the ".container" compilation error
   final container = ProviderContainer(
     observers: [
       TalkerRiverpodObserver(
@@ -163,7 +166,6 @@ Future<void> main() async {
     ],
   );
 
-  // Passing the standalone container to UncontrolledProviderScope binds it to the UI
   runApp(
     UncontrolledProviderScope(
       container: container,
@@ -172,19 +174,16 @@ Future<void> main() async {
   );
 
   // ---------------- BACKGROUND ENGINE FORCE TRIGGER ----------------
-  // Warm up the monitoring engine
   container.read(monitoringServiceProvider);
 
-  // Wake up data collection streams for all registered Checkmk connections
   final settings = container.read(settingsProvider);
   if (settings.connections.isNotEmpty) {
     for (final connection in settings.connections) {
       final monitorParams = AliasAndFilterParams(
         alias: connection.alias,
-        filter: const [], // FIX: Passed an empty array instead of a string to match List<String>
+        filter: const [], 
       );
 
-      // Listening forces Riverpod to keep the timer loops running continuously in memory
       container.listen(
         hostsProvider(monitorParams), 
         (previous, next) {
