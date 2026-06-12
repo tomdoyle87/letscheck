@@ -170,8 +170,10 @@ class Notifier {
   var clients = <String, cmk_api.Client>{};
   var cSettings = <String, SettingsStateConnection>{};
   var cLastFetch = <String, DateTime>{};
+  var cLastHostCacheFetch = <String, DateTime>{};
 
   var knownNotifications = <String, Map<String, DateTime>>{};
+  var hostAliasCache = <String, Map<String, String>>{}; // connection -> hostname -> alias
 
   static Notifier instance = Notifier._internal();
 
@@ -199,12 +201,56 @@ class Notifier {
     _service?.invoke('log', <String, dynamic>{'message': message});
   }
 
+  Future<void> refreshHostAliasCache(String alias) async {
+    try {
+      _log("Refreshing host alias cache for $alias");
+      // Request only the columns we need to avoid type casting issues
+      final response = await clients[alias]!.requestApiCollection('host',
+          columns: ['name', 'alias']);
+
+      hostAliasCache[alias] = {};
+      for (var item in response.data["value"]) {
+        final extensions = item['extensions'];
+        final hostName = extensions['name'] as String?;
+        final hostAlias = extensions['alias'] as String?;
+
+        if (hostName != null && hostAlias != null && hostAlias.isNotEmpty) {
+          hostAliasCache[alias]![hostName] = hostAlias;
+        }
+      }
+      cLastHostCacheFetch[alias] = DateTime.now().toUtc();
+      _log("Cached ${hostAliasCache[alias]!.length} host aliases for $alias");
+    } catch (e) {
+      _log("Failed to refresh host alias cache for $alias: $e");
+    }
+  }
+
   Future<void> sendLogNotification({
-    required String conn,
+    required String hostAlias,
+    required String connectionAlias,
     required cmk_api.Log log,
   }) async {
-    var title = '${log.hostName} : ${log.displayName}';
+    var title = hostAlias.isNotEmpty
+        ? '$hostAlias - ${log.hostName} : ${log.displayName}'
+        : '${log.hostName} : ${log.displayName}';
+    
+    // Clean up the body text - remove "Cache generated" and everything after it
     var body = log.pluginOutput;
+    final cacheGeneratedIndex = body.indexOf('Cache generated');
+    if (cacheGeneratedIndex != -1) {
+      body = body.substring(0, cacheGeneratedIndex).trim();
+      // Remove trailing comma if present
+      if (body.endsWith(',')) {
+        body = body.substring(0, body.length - 1).trim();
+      }
+    }
+
+    // Add space before state abbreviations (CRIT, WARN, OK, UNKN)
+    body = body.replaceAll('CRIT', ' CRIT');
+    body = body.replaceAll('WARN', ' WARN');
+    body = body.replaceAll('OK', ' OK');
+    body = body.replaceAll('UNKN', ' UNKN');
+    body = body.trim();
 
     // Determine urgency level context based on Checkmk log state parameters
     LinuxNotificationUrgency linuxUrgency = LinuxNotificationUrgency.normal;
@@ -269,7 +315,7 @@ class Notifier {
       title,
       body,
       notificationDetails,
-      payload: '/$conn/host/${log.hostName}/services/${log.displayName}',
+      payload: '/$connectionAlias/host/${log.hostName}/services/${log.displayName}',
     );
   }
 
@@ -283,6 +329,13 @@ class Notifier {
       }
       var aliasKnown = knownNotifications[alias]!;
 
+      // Refresh host alias cache if it's older than 1 hour or doesn't exist
+      if (!hostAliasCache.containsKey(alias) ||
+          !cLastHostCacheFetch.containsKey(alias) ||
+          DateTime.now().toUtc().difference(cLastHostCacheFetch[alias]!).inHours >= 1) {
+        await refreshHostAliasCache(alias);
+      }
+
       final secs = ((DateTime.now().toUtc().millisecondsSinceEpoch -
                   lastFetch.millisecondsSinceEpoch) /
               1000)
@@ -295,7 +348,18 @@ class Notifier {
       for (var event in events) {
         final key = '${event.hostName}-${event.displayName}';
         if (!aliasKnown.containsKey(key)) {
-          sendLogNotification(conn: alias, log: event);
+          // Get host alias from cache
+          String hostAlias = '';
+          if (hostAliasCache.containsKey(alias) &&
+              hostAliasCache[alias]!.containsKey(event.hostName)) {
+            hostAlias = hostAliasCache[alias]![event.hostName]!;
+          }
+
+          sendLogNotification(
+            hostAlias: hostAlias,
+            connectionAlias: alias,
+            log: event,
+          );
           aliasKnown[key] = event.time.toUtc();
         }
       }
@@ -367,6 +431,8 @@ class Notifier {
       // Clear old values.
       clients = {};
       cSettings = {};
+      hostAliasCache = {};
+      cLastHostCacheFetch = {};
 
       for (final jsonConnectionSettings in settings['connections']) {
         final s = SettingsStateConnection.fromJson(jsonConnectionSettings);
