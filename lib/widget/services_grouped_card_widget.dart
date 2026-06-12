@@ -6,6 +6,8 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:checkmk_api/checkmk_api.dart' as cmk_api;
 import 'package:letscheck/providers/connection_data/connection_data_state.dart';
+import 'package:letscheck/providers/hosts/hosts_state.dart';
+import 'package:letscheck/providers/params.dart';
 import 'package:letscheck/providers/providers.dart';
 
 class ServicesGroupedCardWidget extends ConsumerWidget {
@@ -30,6 +32,27 @@ class ServicesGroupedCardWidget extends ConsumerWidget {
         .select((s) => (s is ConnectionDataLoaded) ? s.comments : const {}));
     final jsRuntime = ref.watch(javascriptRuntimeProvider);
 
+    // Fetch host information to get alias
+    final hostParams = AliasAndFilterParams(
+        alias: alias,
+        filter: ['{"op": "=", "left": "name", "right": "$groupName"}']);
+    final hosts = ref.watch(hostsProvider(hostParams));
+
+    // Logic to determine the best display name for host
+    String getHostDisplayText() {
+      if (hosts is HostsLoaded && hosts.hosts.isNotEmpty) {
+        final host = hosts.hosts[0];
+        if (host.alias != null && host.alias!.isNotEmpty && host.alias != host.hostName) {
+          return '${host.alias} - ${host.hostName}';
+        }
+        if (host.displayName != null && host.displayName!.isNotEmpty && host.displayName != host.hostName) {
+          return '${host.displayName} - ${host.hostName}';
+        }
+        return host.hostName ?? groupName;
+      }
+      return groupName;
+    }
+
     if (showGroupHeader) {
       cardWidgets.add(
         Padding(
@@ -43,7 +66,7 @@ class ServicesGroupedCardWidget extends ConsumerWidget {
               Expanded(
                 flex: 20,
                 child: SelectableText(
-                  groupName,
+                  getHostDisplayText(),
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
               ),

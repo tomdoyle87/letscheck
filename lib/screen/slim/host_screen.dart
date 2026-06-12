@@ -40,13 +40,26 @@ class HostScreenState extends ConsumerState<HostScreen> {
         filter: ['{"op": "=", "left": "host_name", "right": "$hostname"}']);
   }
 
-  SlimLayoutSettings settings() {
+  SlimLayoutSettings settings(WidgetRef ref) {
     var title = 'Host';
-    var myHostname = hostname;
-    if (myHostname.length > 25) {
-      myHostname = myHostname.substring(0, 25);
+    
+    // Fetch host information to get alias for title
+    final hosts = ref.watch(hostsProvider(hostParams));
+    String displayHostname = hostname;
+    
+    if (hosts is HostsLoaded && hosts.hosts.isNotEmpty) {
+      final host = hosts.hosts[0];
+      if (host.alias != null && host.alias!.isNotEmpty && host.alias != host.hostName) {
+        displayHostname = '${host.alias} - ${host.hostName}';
+      } else if (host.displayName != null && host.displayName!.isNotEmpty && host.displayName != host.hostName) {
+        displayHostname = '${host.displayName} - ${host.hostName}';
+      }
     }
-    title = "Host $myHostname";
+    
+    if (displayHostname.length > 25) {
+      displayHostname = displayHostname.substring(0, 25);
+    }
+    title = "Host $displayHostname";
 
     return SlimLayoutSettings(title, showMenu: false, showSearch: false);
   }
@@ -64,7 +77,7 @@ class HostScreenState extends ConsumerState<HostScreen> {
         servicesGroupByHostname(services: services.services);
 
     return SlimLayout(
-      layoutSettings: settings(),
+      layoutSettings: settings(ref),
       child: Column(
         children: [
           SiteStatsWidget(alias: alias),
