@@ -263,6 +263,7 @@ class Client {
       'parents',
       'tags',
       'latency',
+      'filename',
     ];
 
     var response =

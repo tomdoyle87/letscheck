@@ -7,6 +7,8 @@ final class Host {
   final String? pluginOutput;
   final List<num>? comments;
   final DateTime? lastStateChange;
+  final List<String>? groups;
+  final String? folder;
 
   const Host({
     required this.state,
@@ -17,6 +19,8 @@ final class Host {
     this.pluginOutput,
     this.comments,
     this.lastStateChange,
+    this.groups,
+    this.folder,
   });
 
   factory Host.fromJson(Map<String, dynamic> json) {
@@ -32,6 +36,8 @@ final class Host {
           ? DateTime.fromMillisecondsSinceEpoch(
               ((json['last_state_change'] as int) * 1000).round())
           : null,
+      groups: (json['groups'] as List<dynamic>?)?.cast<String>(),
+      folder: json['filename'] as String?, // Mapped from filename column
     );
   }
 
@@ -44,6 +50,8 @@ final class Host {
     String? pluginOutput,
     List<num>? comments,
     DateTime? lastStateChange,
+    List<String>? groups,
+    String? folder,
   }) {
     return Host(
       state: state ?? this.state,
@@ -54,6 +62,8 @@ final class Host {
       pluginOutput: pluginOutput ?? this.pluginOutput,
       comments: comments ?? this.comments,
       lastStateChange: lastStateChange ?? this.lastStateChange,
+      groups: groups ?? this.groups,
+      folder: folder ?? this.folder,
     );
   }
 
@@ -69,7 +79,9 @@ final class Host {
           alias == other.alias &&
           pluginOutput == other.pluginOutput &&
           comments == other.comments &&
-          lastStateChange == other.lastStateChange;
+          lastStateChange == other.lastStateChange &&
+          groups == other.groups &&
+          folder == other.folder;
 
   @override
   int get hashCode =>
@@ -80,10 +92,12 @@ final class Host {
       alias.hashCode ^
       pluginOutput.hashCode ^
       comments.hashCode ^
-      lastStateChange.hashCode;
+      lastStateChange.hashCode ^
+      groups.hashCode ^
+      folder.hashCode;
 
   @override
   String toString() {
-    return 'Host(state: $state, acknowledged: $acknowledged, hostName: $hostName, displayName: $displayName, alias: $alias, pluginOutput: $pluginOutput, comments: $comments, lastStateChange: $lastStateChange)';
+    return 'Host(state: $state, acknowledged: $acknowledged, hostName: $hostName, displayName: $displayName, alias: $alias, pluginOutput: $pluginOutput, comments: $comments, lastStateChange: $lastStateChange, groups: $groups, folder: $folder)';
   }
 }

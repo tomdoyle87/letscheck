@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:letscheck/providers/params.dart';
 import 'package:letscheck/providers/providers.dart';
 import 'package:letscheck/providers/services/services_state.dart';
+import 'package:letscheck/providers/hosts/hosts_state.dart';
 import 'package:letscheck/widget/services_list_widget.dart';
 import 'package:letscheck/widget/site_stats_widget.dart';
 
@@ -69,8 +70,11 @@ class ServicesScreenState extends ConsumerState<ServicesScreen> {
   @override
   Widget build(BuildContext context) {
     final services = ref.watch(servicesProvider(params));
+    final hosts = ref.watch(hostsProvider(AliasAndFilterParams(alias: alias, filter: [])));
 
     if (services is ServicesLoaded) {
+      final hostsList = hosts is HostsLoaded ? hosts.hosts : <cmk_api.Host>[];
+      
       return SlimLayout(
         layoutSettings: settings(),
         child: Column(
@@ -80,6 +84,7 @@ class ServicesScreenState extends ConsumerState<ServicesScreen> {
               child: ServicesListWidget(
                 alias: alias,
                 services: services.services,
+                hosts: hostsList,
                 listKey: PageStorageKey('services_screen_$alias'),
               ),
             ),

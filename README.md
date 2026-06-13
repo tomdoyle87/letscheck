@@ -6,23 +6,18 @@
 
 This fork includes the following enhancements:
 
-### 1. **Host Alias Display Throughout App** 🎯
-- Host alias now displays before hostname in all views and notifications
-- Format: "ALIAS - HOSTNAME" with fallback to just hostname
-- Applied to: host cards, service group headers, host screen titles, and notification titles
-- Smart fallback: alias → displayName → hostname hierarchy
-
-### 2. **Fixed Linux/GNOME Notifications** 🔔
+- Host alias now displays before hostname in all views and notifications, with fallback to hostname if no alias is available
 - Enhanced notification display with proper formatting
-- Removes cache information from notification messages
-- Adds spacing before state abbreviations (CRIT, WARN, OK, UNKN)
 - Improved GNOME desktop integration and background service stability
-
-### 3. **Added Top Bar and Minimize Behavior** 🖥️
 - Restored application top bar for better navigation
 - X button now minimizes to system tray instead of exiting
 - Application continues running in background when minimized
 - Better desktop integration for long-running monitoring
+- Hosts and Services page now organized by folders (matching your CheckMK structure), with expandable and collapsable views for a cleaner interface
+- Both hosts and services pages support folder grouping with easy expand/collapse functionality
+- Host page features custom folder ordering that persists across sessions, with a "Collapse all" button to close all expanded folders
+- Services page automatically uses your customized folder order from the hosts page
+- Folders on the services page always start collapsed for a fresh view each visit
 
 ---
 
@@ -57,9 +52,8 @@ flutter build linux --release
 **Important:** After building, you need to fix a misplaced library file:
 
 ```bash
-# Create symlink for the misplaced library
-ln -sf ../../../plugins/flutter_js/bundle/lib/libquickjs_c_bridge_plugin.so \
-   build/linux/x64/release/bundle/lib/libquickjs_c_bridge_plugin.so
+# Copy misplaced library to correct place
+cp build/linux/x64/release/plugins/flutter_js/bundle/lib/libquickjs_c_bridge_plugin.so build/linux/x64/release/bundle/lib/
 ```
 
 This resolves an issue where the flutter_js plugin library is placed in the wrong directory during the build process.

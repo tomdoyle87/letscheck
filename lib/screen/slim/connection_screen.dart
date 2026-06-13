@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:checkmk_api/checkmk_api.dart' as cmk_api;
 
 import 'package:letscheck/providers/connection_data/connection_data_state.dart';
+import 'package:letscheck/providers/hosts/hosts_state.dart';
+import 'package:letscheck/providers/params.dart';
+import 'package:letscheck/providers/providers.dart';
 import 'package:letscheck/screen/slim/slim_layout.dart';
 import 'package:letscheck/widget/site_stats_widget.dart';
 import 'package:letscheck/widget/services_list_widget.dart';
-import 'package:letscheck/providers/providers.dart';
 
 class ConnectionScreen extends ConsumerStatefulWidget {
   final String alias;
@@ -24,6 +27,7 @@ class ConnectionScreenState extends ConsumerState<ConnectionScreen> {
   @override
   Widget build(BuildContext context) {
     final connectionData = ref.watch(connectionDataProvider(widget.alias));
+    final hosts = ref.watch(hostsProvider(AliasAndFilterParams(alias: widget.alias, filter: [])));
 
     return SlimLayout(
       layoutSettings: layoutSettings(),
@@ -38,6 +42,7 @@ class ConnectionScreenState extends ConsumerState<ConnectionScreen> {
                   child: ServicesListWidget(
                 alias: widget.alias,
                 services: unhServices.toList(),
+                hosts: hosts is HostsLoaded ? hosts.hosts : <cmk_api.Host>[],
               )),
             ],
           ),
