@@ -8,13 +8,13 @@ class ServicesListWidget extends StatefulWidget {
   final String alias;
   final List<cmk_api.Service> services;
   final List<cmk_api.Host> hosts;
-  final Key? listKey;
+  final String filter;
 
   const ServicesListWidget({
     required this.alias,
     required this.services,
     required this.hosts,
-    this.listKey,
+    required this.filter,
     super.key,
   });
 
@@ -33,12 +33,17 @@ class _ServicesListWidgetState extends State<ServicesListWidget>
   final minimalVisualDensity = VisualDensity(horizontal: -4.0, vertical: -4.0);
 
   @override
-  bool get wantKeepAlive => true;
+  bool get wantKeepAlive => widget.filter == 'all';
 
   @override
   void initState() {
     super.initState();
     _loadFolderOrder();
+  }
+
+  @override
+  void didUpdateWidget(ServicesListWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
   }
 
   Future<void> _loadFolderOrder() async {
@@ -86,71 +91,101 @@ class _ServicesListWidgetState extends State<ServicesListWidget>
   Widget build(BuildContext context) {
     super.build(context); // Required by AutomaticKeepAliveClientMixin
 
-    final groupedServices = servicesGroupByFolderAndHost(
-      services: widget.services,
-      hosts: widget.hosts,
-    );
+    // Use simple grouping for critical/warning filters, folder grouping for "all"
+    if (widget.filter == 'problems' || widget.filter == 'unhandled' || widget.filter == 'stale') {
+      final groupedServices = servicesGroupByHostname(services: widget.services);
+      final hostNames = groupedServices.keys.toList()..sort();
 
-    // Get folder list - use custom order if available, otherwise use alphabetical with Main first
-    List<String> sortedFolders;
-    if (_customFolderOrder.isNotEmpty) {
-      sortedFolders = _customFolderOrder
-          .where((folder) => groupedServices.containsKey(folder))
-          .toList();
-      
-      final existingFolders = sortedFolders.toSet();
-      final newFolders = groupedServices.keys
-          .where((folder) => !existingFolders.contains(folder))
-          .toList()
-        ..sort((a, b) {
-          if (a == 'Main') return -1;
-          if (b == 'Main') return 1;
-          return a.compareTo(b);
-        });
-      
-      sortedFolders.addAll(newFolders);
-    } else {
-      sortedFolders = groupedServices.keys.toList()
-        ..sort((a, b) {
-          if (a == 'Main') return -1;
-          if (b == 'Main') return 1;
-          return a.compareTo(b);
-        });
-    }
-
-    return ListView(
-      key: widget.listKey,
-      controller: _scrollController,
-      children: [
-        for (final folder in sortedFolders)
-          Column(
-            key: ValueKey(folder),
-            children: [
-              _buildFolderHeader(folder, groupedServices[folder]!.length),
-              if (_expandedFolders[folder] ?? false)
-                ...groupedServices[folder]!.entries.map((entry) {
-                  final hostname = entry.key; // This is the actual hostname
-                  final hostServices = entry.value;
-                  return Column(
-                    key: ValueKey(hostname),
-                    children: [
-                      _buildHostHeader(hostname, hostServices.length),
-                      if (_expandedHosts[hostname] ?? false)
-                        ...hostServices.map((service) => 
-                          ServicesGroupedCardWidget(
-                            alias: widget.alias,
-                            groupName: hostname, // Use actual hostname for grouping
-                            services: [service],
-                            showGroupHeader: false,
-                          ),
-                        ),
-                    ],
-                  );
-                }),
-            ],
+      if (widget.services.isEmpty) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Text('No alerts found'),
           ),
-      ],
-    );
+        );
+      }
+
+      return ListView(
+        controller: _scrollController,
+        children: [
+          for (final hostname in hostNames)
+            ServicesGroupedCardWidget(
+              alias: widget.alias,
+              groupName: hostname,
+              services: groupedServices[hostname]!,
+              showGroupHeader: true,
+            ),
+        ],
+      );
+    } else {
+      // Use folder grouping for "all" filter
+      final groupedServices = servicesGroupByFolderAndHost(
+        services: widget.services,
+        hosts: widget.hosts,
+      );
+
+
+
+      // Get folder list - use custom order if available, otherwise use alphabetical with Main first
+      List<String> sortedFolders;
+      if (_customFolderOrder.isNotEmpty) {
+        sortedFolders = _customFolderOrder
+            .where((folder) => groupedServices.containsKey(folder))
+            .toList();
+        
+        final existingFolders = sortedFolders.toSet();
+        final newFolders = groupedServices.keys
+            .where((folder) => !existingFolders.contains(folder))
+            .toList()
+          ..sort((a, b) {
+            if (a == 'Main') return -1;
+            if (b == 'Main') return 1;
+            return a.compareTo(b);
+          });
+        
+        sortedFolders.addAll(newFolders);
+      } else {
+        sortedFolders = groupedServices.keys.toList()
+          ..sort((a, b) {
+            if (a == 'Main') return -1;
+            if (b == 'Main') return 1;
+            return a.compareTo(b);
+          });
+      }
+
+      return ListView(
+        controller: _scrollController,
+        children: [
+          for (final folder in sortedFolders)
+            Column(
+              key: ValueKey(folder),
+              children: [
+                _buildFolderHeader(folder, groupedServices[folder]!.length),
+                if (_expandedFolders[folder] ?? false)
+                  ...groupedServices[folder]!.entries.map((entry) {
+                    final hostname = entry.key; // This is the actual hostname
+                    final hostServices = entry.value;
+                    return Column(
+                      key: ValueKey(hostname),
+                      children: [
+                        _buildHostHeader(hostname, hostServices.length),
+                        if (_expandedHosts[hostname] ?? false)
+                          ...hostServices.map((service) => 
+                            ServicesGroupedCardWidget(
+                              alias: widget.alias,
+                              groupName: hostname, // Use actual hostname for grouping
+                              services: [service],
+                              showGroupHeader: false,
+                            ),
+                          ),
+                      ],
+                    );
+                  }),
+              ],
+            ),
+        ],
+      );
+    }
   }
 
   Widget _buildFolderHeader(String folderName, int hostCount) {

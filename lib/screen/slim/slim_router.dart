@@ -10,6 +10,8 @@ import 'package:letscheck/screen/slim/services_screen.dart';
 import 'package:letscheck/screen/slim/host_screen.dart';
 import 'package:letscheck/screen/slim/service_screen.dart';
 import 'package:letscheck/screen/slim/log_screen.dart';
+import 'package:letscheck/screen/slim/critical_alerts_screen.dart';
+import 'package:letscheck/screen/slim/warning_alerts_screen.dart';
 
 List<RouteBase> slimRoutes() {
   return [
@@ -68,6 +70,18 @@ List<RouteBase> slimRoutes() {
       builder: (context, state) => ServicesScreen(
         alias: state.pathParameters['alias']!,
         filter: state.pathParameters['filter']!,
+      ),
+    ),
+    GoRoute(
+      path: '/conn/:alias/critical',
+      builder: (context, state) => CriticalAlertsScreen(
+        alias: state.pathParameters['alias']!,
+      ),
+    ),
+    GoRoute(
+      path: '/conn/:alias/warning',
+      builder: (context, state) => WarningAlertsScreen(
+        alias: state.pathParameters['alias']!,
       ),
     ),
   ];

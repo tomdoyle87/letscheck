@@ -30,7 +30,7 @@ class ServicesScreenState extends ConsumerState<ServicesScreen> {
 
   ServicesScreenState({required this.alias, required this.filter}) {
     var myFilters = <String>[];
-    switch (filter) {
+    switch (this.filter) {
       case 'problems':
         myFilters.add(
             '{"op": "=", "left": "state", "right": "${cmk_api.svcStateWarn}"}');
@@ -46,22 +46,31 @@ class ServicesScreenState extends ConsumerState<ServicesScreen> {
       case 'all':
         break;
       default:
-        if (filter.isNotEmpty) {
-          myFilters.add(filter);
+        if (this.filter.isNotEmpty) {
+          myFilters.add(this.filter);
         }
     }
 
     params = AliasAndFilterParams(alias: alias, filter: myFilters);
   }
 
+  @override
+  void initState() {
+    super.initState();
+    // Force refresh when page is navigated to
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.invalidate(servicesProvider(params));
+    });
+  }
+
   SlimLayoutSettings settings() {
     var title = 'Services';
-    switch (filter) {
+    switch (widget.filter) {
       case 'all':
         title = "Services";
         break;
       default:
-        title = "Services $filter";
+        title = "Services ${widget.filter}";
     }
 
     return SlimLayoutSettings(title, showMenu: false);
@@ -70,22 +79,23 @@ class ServicesScreenState extends ConsumerState<ServicesScreen> {
   @override
   Widget build(BuildContext context) {
     final services = ref.watch(servicesProvider(params));
-    final hosts = ref.watch(hostsProvider(AliasAndFilterParams(alias: alias, filter: [])));
+    final hosts = ref.watch(hostsProvider(AliasAndFilterParams(alias: widget.alias, filter: [])));
 
     if (services is ServicesLoaded) {
       final hostsList = hosts is HostsLoaded ? hosts.hosts : <cmk_api.Host>[];
-      
+
       return SlimLayout(
         layoutSettings: settings(),
         child: Column(
           children: [
-            SiteStatsWidget(alias: alias),
+            SiteStatsWidget(alias: widget.alias),
             Expanded(
               child: ServicesListWidget(
-                alias: alias,
+                key: ValueKey('services_${widget.filter}'),
+                alias: widget.alias,
                 services: services.services,
                 hosts: hostsList,
-                listKey: PageStorageKey('services_screen_$alias'),
+                filter: widget.filter,
               ),
             ),
           ],
@@ -96,7 +106,7 @@ class ServicesScreenState extends ConsumerState<ServicesScreen> {
         layoutSettings: settings(),
         child: Column(
           children: [
-            SiteStatsWidget(alias: alias),
+            SiteStatsWidget(alias: widget.alias),
             const Expanded(child: Center(child: CircularProgressIndicator())),
           ],
         ),

@@ -7,8 +7,14 @@ class HostsListWidget extends StatefulWidget {
   final String alias;
   final List<cmk_api.Host> hosts;
   final Key? listKey;
+  final bool showCollapseButton;
 
-  const HostsListWidget({required this.alias, required this.hosts, this.listKey});
+  const HostsListWidget({
+    required this.alias,
+    required this.hosts,
+    this.listKey,
+    this.showCollapseButton = true,
+  });
 
   @override
   State<HostsListWidget> createState() => _HostsListWidgetState();
@@ -175,20 +181,21 @@ class _HostsListWidgetState extends State<HostsListWidget> {
 
     return Column(
       children: [
-        // Collapse all button
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton.icon(
-                onPressed: _resetToDefault,
-                icon: const Icon(Icons.expand_less, size: 16),
-                label: const Text('Collapse all'),
-              ),
-            ],
+        // Collapse all button - only show when enabled
+        if (widget.showCollapseButton)
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  onPressed: _resetToDefault,
+                  icon: const Icon(Icons.expand_less, size: 16),
+                  label: const Text('Collapse all'),
+                ),
+              ],
+            ),
           ),
-        ),
         // Hosts list
         Expanded(
           child: ListView(
@@ -200,8 +207,8 @@ class _HostsListWidgetState extends State<HostsListWidget> {
                   key: ValueKey(sortedFolders[index]),
                   children: [
                     _buildGroupHeader(
-                      sortedFolders[index], 
-                      _expandedFolders[sortedFolders[index]] ?? false, 
+                      sortedFolders[index],
+                      _expandedFolders[sortedFolders[index]] ?? false,
                       groupedHosts[sortedFolders[index]]!.length,
                       index,
                       sortedFolders.length,

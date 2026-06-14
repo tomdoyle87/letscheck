@@ -31,6 +31,7 @@ import 'package:letscheck/providers/params.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'services/notification_service.dart';
 import 'services/monitoring_service.dart';
+import 'package:letscheck/widget/alert_handler.dart';
 
 // Blending background definitions while hiding duplicates
 import 'providers/app_providers.dart' hide sharedPreferencesProvider, packageInfoProvider;
@@ -121,7 +122,14 @@ Future<void> main() async {
 
   // ---------------- LOGGING & RUNTIME SETUP ----------------
   final talker = Talker(logger: TalkerLogger(formatter: ColoredLoggerFormatter()));
-  final jsRuntime = await initJavascriptRuntime();
+  
+  JavascriptRuntimeWrapper? jsRuntime;
+  try {
+    jsRuntime = await initJavascriptRuntime();
+  } catch (e) {
+    print('Failed to initialize JavaScript runtime: $e');
+  }
+  
   final packageInfo = await PackageInfo.fromPlatform();
 
   // ---------------- NOTIFICATION & BACKGROUND CHANNELS ----------------
@@ -159,7 +167,7 @@ Future<void> main() async {
     overrides: [
       talkerProvider.overrideWithValue(talker),
       sharedPreferencesProvider.overrideWithValue(prefs),
-      javascriptRuntimeProvider.overrideWithValue(jsRuntime),
+      if (jsRuntime != null) javascriptRuntimeProvider.overrideWithValue(jsRuntime),
       packageInfoProvider.overrideWithValue(packageInfo),
       notificationServiceProvider.overrideWithValue(notificationService),
       monitoringServiceProvider.overrideWithValue(monitoringService),
@@ -253,6 +261,14 @@ class _AppState extends ConsumerState<App> with TrayListener, WindowListener {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: isLightMode ? ThemeMode.light : ThemeMode.dark,
+      builder: (context, child) {
+        return Stack(
+          children: [
+            child!,
+            const AlertHandler(),
+          ],
+        );
+      },
     );
   }
 }

@@ -28,7 +28,7 @@ class HostsScreenState extends ConsumerState<HostsScreen> {
 
   HostsScreenState({required this.alias, required this.filter}) {
     var myFilters = <String>[];
-    switch (filter) {
+    switch (this.filter) {
       case 'problems':
         myFilters.add(
             '{"op": "=", "left": "state", "right": "${cmk_api.hostStateDown}"}');
@@ -44,21 +44,30 @@ class HostsScreenState extends ConsumerState<HostsScreen> {
       case 'all':
         break;
       default:
-        if (filter.isNotEmpty) {
-          myFilters.add(filter);
+        if (this.filter.isNotEmpty) {
+          myFilters.add(this.filter);
         }
     }
     params = AliasAndFilterParams(alias: alias, filter: myFilters);
   }
 
+  @override
+  void initState() {
+    super.initState();
+    // Force refresh when page is navigated to
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.invalidate(hostsProvider(params));
+    });
+  }
+
   SlimLayoutSettings setup() {
     var title = 'Hosts';
-    switch (filter) {
+    switch (widget.filter) {
       case 'all':
         title = "Hosts";
         break;
       default:
-        title = "Hosts $filter";
+        title = "Hosts ${widget.filter}";
     }
 
     return SlimLayoutSettings(title, showMenu: false);
@@ -68,17 +77,21 @@ class HostsScreenState extends ConsumerState<HostsScreen> {
   Widget build(BuildContext context) {
     final hosts = ref.watch(hostsProvider(params));
 
+    // Only show collapse button for the main "Hosts" page (filter == 'all' or empty)
+    final showCollapseButton = widget.filter == 'all' || widget.filter.isEmpty;
+
     if (hosts is HostsLoaded) {
       return SlimLayout(
         layoutSettings: setup(),
         child: Column(
           children: [
-            SiteStatsWidget(alias: alias),
+            SiteStatsWidget(alias: widget.alias),
             Expanded(
                 child: HostsListWidget(
-              alias: alias,
+              alias: widget.alias,
               hosts: hosts.hosts,
-              listKey: PageStorageKey('hosts_screen_$alias'),
+              listKey: PageStorageKey('hosts_screen_${widget.alias}'),
+              showCollapseButton: showCollapseButton,
             )),
           ],
         ),
@@ -88,7 +101,7 @@ class HostsScreenState extends ConsumerState<HostsScreen> {
         layoutSettings: setup(),
         child: Column(
           children: [
-            SiteStatsWidget(alias: alias),
+            SiteStatsWidget(alias: widget.alias),
             const Expanded(child: Center(child: CircularProgressIndicator())),
           ],
         ),

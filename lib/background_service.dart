@@ -173,6 +173,7 @@ class Notifier {
   var cLastHostCacheFetch = <String, DateTime>{};
 
   var knownNotifications = <String, Map<String, DateTime>>{};
+  var notificationStates = <String, Map<String, int>>{}; // connection -> key -> state
   var hostAliasCache = <String, Map<String, String>>{}; // connection -> hostname -> alias
 
   static Notifier instance = Notifier._internal();
@@ -273,6 +274,20 @@ class Notifier {
         linuxUrgency = LinuxNotificationUrgency.normal;
     }
 
+    // Send alert message to foreground app
+    final alertType = log.state == cmk_api.svcStateOk ? 'clear' : 'add';
+    
+    _service?.invoke('alert', {
+      'type': alertType,
+      'title': title,
+      'body': body,
+      'connectionAlias': connectionAlias,
+      'hostName': log.hostName,
+      'displayName': log.displayName,
+      'state': log.state,
+      'timestamp': log.time.toIso8601String(),
+    });
+
     const androidNotificationDetails = AndroidNotificationDetails(
         notifications_android.notificationChannelId, 'LetsCheck',
         channelDescription: 'Notifications for letscheck',
@@ -327,7 +342,11 @@ class Notifier {
       if (!knownNotifications.containsKey(alias)) {
         knownNotifications[alias] = {};
       }
+      if (!notificationStates.containsKey(alias)) {
+        notificationStates[alias] = {};
+      }
       var aliasKnown = knownNotifications[alias]!;
+      var aliasStates = notificationStates[alias]!;
 
       // Refresh host alias cache if it's older than 1 hour or doesn't exist
       if (!hostAliasCache.containsKey(alias) ||
@@ -345,9 +364,18 @@ class Notifier {
       _log(
           "Found ${events.length} notifications for $alias within $secs seconds");
 
+      _log('Current known notifications for $alias: ${aliasKnown.keys.length}');
+      _log('Current notification states for $alias: ${aliasStates.keys.length}');
+
       for (var event in events) {
         final key = '${event.hostName}-${event.displayName}';
-        if (!aliasKnown.containsKey(key)) {
+        
+        final previousState = aliasStates[key];
+        _log('Processing event $key, state: ${event.state}, previousState: $previousState');
+        
+        // Check if state changed from critical/warning to OK
+        if (previousState != null && previousState != cmk_api.svcStateOk && event.state == cmk_api.svcStateOk) {
+          _log('State changed from $previousState to OK for $key, sending clear message');
           // Get host alias from cache
           String hostAlias = '';
           if (hostAliasCache.containsKey(alias) &&
@@ -360,17 +388,115 @@ class Notifier {
             connectionAlias: alias,
             log: event,
           );
-          aliasKnown[key] = event.time.toUtc();
+          // Update state
+          aliasStates[key] = event.state;
+        }
+        // New notification or state changed to non-OK
+        else if (!aliasKnown.containsKey(key) || (previousState != null && previousState != event.state && event.state != cmk_api.svcStateOk)) {
+          _log('New notification or state change for $key, sending alert message');
+          // Get host alias from cache
+          String hostAlias = '';
+          if (hostAliasCache.containsKey(alias) &&
+              hostAliasCache[alias]!.containsKey(event.hostName)) {
+            hostAlias = hostAliasCache[alias]![event.hostName]!;
+          }
+
+          sendLogNotification(
+            hostAlias: hostAlias,
+            connectionAlias: alias,
+            log: event,
+          );
+          aliasKnown[key] = DateTime.now().toUtc();
+          aliasStates[key] = event.state;
+        }
+        // Update state even if we don't send notification
+        else {
+          _log('State unchanged for $key, updating state only');
+          aliasStates[key] = event.state;
         }
       }
 
-      var toRemove = [];
+      // Check tracked alerts for state changes by fetching current state
+      _log('Checking tracked alerts for state changes');
+      var toRemove = <String>[];
       for (final key in aliasKnown.keys) {
-        if (aliasKnown[key]!.isAfter(lastFetch)) {
+        final previousState = aliasStates[key];
+        if (previousState == null || previousState == cmk_api.svcStateOk) {
+          // Already OK or no state, can remove
           toRemove.add(key);
+          continue;
+        }
+
+        // Parse the key to get hostName and displayName
+        final parts = key.split('-');
+        if (parts.length < 2) {
+          toRemove.add(key);
+          continue;
+        }
+        final hostName = parts.sublist(0, parts.length - 1).join('-');
+        final displayName = parts.last;
+
+        try {
+          // Fetch current state of this specific service
+          final query = [
+            '{"op": "and", "expressions": [{"op": "=", "left": "host_name", "right": "$hostName"}, {"op": "=", "left": "display_name", "right": "$displayName"}]}'
+              .replaceAll('$hostName', hostName)
+              .replaceAll('$displayName', displayName)
+          ];
+          
+          final services = await client.getApiServices(filter: query);
+          if (services.isNotEmpty) {
+            final currentState = services.first.state;
+            _log('Current state for $key: $currentState (was $previousState)');
+            
+            if (currentState == cmk_api.svcStateOk && previousState != cmk_api.svcStateOk) {
+              _log('State changed from $previousState to OK for $key, sending clear message');
+              
+              // Create a synthetic OK event to trigger clear
+              final okEvent = cmk_api.Log(
+                time: DateTime.now().toUtc(),
+                hostName: hostName,
+                displayName: displayName,
+                state: cmk_api.svcStateOk,
+                pluginOutput: 'Service cleared',
+              );
+              
+              // Get host alias from cache
+              String hostAlias = '';
+              if (hostAliasCache.containsKey(alias) &&
+                  hostAliasCache[alias]!.containsKey(hostName)) {
+                hostAlias = hostAliasCache[alias]![hostName]!;
+              }
+
+              sendLogNotification(
+                hostAlias: hostAlias,
+                connectionAlias: alias,
+                log: okEvent,
+              );
+              
+              // Update state and mark for removal
+              aliasStates[key] = currentState;
+              toRemove.add(key);
+            } else if (currentState != previousState) {
+              // State changed to another non-OK state, update it
+              aliasStates[key] = currentState;
+            }
+          } else {
+            // Service not found, remove from tracking
+            _log('Service $key not found, removing from tracking');
+            toRemove.add(key);
+          }
+        } catch (e) {
+          _log('Error checking state for $key: $e');
+          // Keep it in tracking and try again next time
         }
       }
+      
+      _log('Removing ${toRemove.length} alerts from tracking');
       aliasKnown.removeWhere((key, item) => toRemove.contains(key));
+      for (final key in toRemove) {
+        aliasStates.remove(key);
+      }
     } on Object {
       // Ignore.
     }
@@ -433,6 +559,8 @@ class Notifier {
       cSettings = {};
       hostAliasCache = {};
       cLastHostCacheFetch = {};
+      knownNotifications = {};
+      notificationStates = {};
 
       for (final jsonConnectionSettings in settings['connections']) {
         final s = SettingsStateConnection.fromJson(jsonConnectionSettings);
