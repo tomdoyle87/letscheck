@@ -8,12 +8,14 @@ class HostsListWidget extends StatefulWidget {
   final List<cmk_api.Host> hosts;
   final Key? listKey;
   final bool showCollapseButton;
+  final String filter;
 
   const HostsListWidget({
     required this.alias,
     required this.hosts,
     this.listKey,
     this.showCollapseButton = true,
+    this.filter = 'all',
   });
 
   @override
@@ -138,7 +140,27 @@ class _HostsListWidgetState extends State<HostsListWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // Group hosts by their folder
+    // Use simple list for problems/unhandled filters, folder grouping for others
+    if (widget.filter == 'problems' || widget.filter == 'unhandled' || widget.filter == 'stale') {
+      if (widget.hosts.isEmpty) {
+        return const Center(
+          child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: Text('No alerts found'),
+          ),
+        );
+      }
+
+      return ListView(
+        key: widget.listKey,
+        children: widget.hosts.map((host) => HostCardWidget(
+          alias: widget.alias,
+          host: host,
+        )).toList(),
+      );
+    }
+
+    // Group hosts by their folder for "all" filter
     var groupedHosts = <String, List<cmk_api.Host>>{};
 
     for (var host in widget.hosts) {
@@ -156,7 +178,7 @@ class _HostsListWidgetState extends State<HostsListWidget> {
       sortedFolders = _customFolderOrder
           .where((folder) => groupedHosts.containsKey(folder))
           .toList();
-      
+
       // Add any new folders that aren't in the custom order
       final existingFolders = sortedFolders.toSet();
       final newFolders = groupedHosts.keys
@@ -167,7 +189,7 @@ class _HostsListWidgetState extends State<HostsListWidget> {
           if (b == 'Main') return 1;
           return a.compareTo(b);
         });
-      
+
       sortedFolders.addAll(newFolders);
     } else {
       // Default alphabetical sort with Main first

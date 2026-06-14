@@ -92,6 +92,7 @@ class HostsScreenState extends ConsumerState<HostsScreen> {
               hosts: hosts.hosts,
               listKey: PageStorageKey('hosts_screen_${widget.alias}'),
               showCollapseButton: showCollapseButton,
+              filter: widget.filter,
             )),
           ],
         ),
