@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -74,6 +75,18 @@ Future<void> main() async {
 
   final prefs = await SharedPreferences.getInstance();
 
+  // Load settings early for window initialization
+  bool alwaysFullScreen = false;
+  final settingsJson = prefs.getString('settings');
+  if (settingsJson != null) {
+    try {
+      final settingsMap = jsonDecode(settingsJson) as Map<String, dynamic>;
+      alwaysFullScreen = settingsMap['alwaysFullScreen'] as bool? ?? false;
+    } catch (e) {
+      // Ignore parsing errors, use default
+    }
+  }
+
   // ---------------- WINDOW MANAGER ----------------
   if (!kIsWeb && (Platform.isLinux || Platform.isMacOS || Platform.isWindows)) {
     await windowManager.ensureInitialized();
@@ -88,6 +101,9 @@ Future<void> main() async {
     );
 
     windowManager.waitUntilReadyToShow(windowOptions, () async {
+      if (alwaysFullScreen) {
+        await windowManager.maximize();
+      }
       // START MINIMIZED TO TRAY
       await windowManager.hide();
     });
@@ -245,6 +261,10 @@ class _AppState extends ConsumerState<App> with TrayListener, WindowListener {
       await windowManager.show();
       await Future.delayed(const Duration(milliseconds: 100));
       await windowManager.focus();
+      final settings = ref.read(settingsProvider);
+      if (settings.alwaysFullScreen) {
+        await windowManager.maximize();
+      }
     } else if (menuItem.key == 'exit_app' || menuItem.key == 'exit') {
       await windowManager.destroy();
     }
@@ -253,7 +273,19 @@ class _AppState extends ConsumerState<App> with TrayListener, WindowListener {
   @override
   Widget build(BuildContext context) {
     final isLightMode = ref.watch(settingsProvider.select((s) => s.isLightMode));
+    final alwaysFullScreen = ref.watch(settingsProvider.select((s) => s.alwaysFullScreen));
     final router = ref.watch(routerProvider);
+
+    // Watch for full screen setting changes and apply immediately
+    ref.listen(settingsProvider.select((s) => s.alwaysFullScreen), (previous, next) {
+      if (!kIsWeb && (Platform.isLinux || Platform.isMacOS || Platform.isWindows)) {
+        if (next) {
+          windowManager.maximize();
+        } else {
+          windowManager.unmaximize();
+        }
+      }
+    });
 
     return MaterialApp.router(
       routerConfig: router,

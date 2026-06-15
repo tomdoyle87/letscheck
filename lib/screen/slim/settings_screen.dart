@@ -1,3 +1,6 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_settings_ui/flutter_settings_ui.dart';
@@ -121,6 +124,14 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
                 onToggle: (context) =>
                     settingsNotifier.setTheme(!settings.isLightMode),
               ),
+              if (!kIsWeb && !Platform.isAndroid)
+                SettingsTile.switchTile(
+                  title: Text('Always Full Screen'),
+                  leading: Icon(Icons.fullscreen),
+                  initialValue: settings.alwaysFullScreen,
+                  onToggle: (context) => settingsNotifier
+                      .setAlwaysFullScreen(!settings.alwaysFullScreen),
+                ),
               SettingsTile.navigation(
                 title: Text('Refresh Time'),
                 trailing: Text('${settings.refreshSeconds} Seconds'),

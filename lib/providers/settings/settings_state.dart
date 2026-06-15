@@ -91,12 +91,14 @@ final class SettingsState extends Equatable {
   final String currentAlias;
   final bool isLightMode;
   final int refreshSeconds;
+  final bool alwaysFullScreen;
 
   const SettingsState({
     this.connections = const [],
     this.currentAlias = '',
     this.isLightMode = true,
     this.refreshSeconds = 30,
+    this.alwaysFullScreen = false,
   });
 
   @override
@@ -105,6 +107,7 @@ final class SettingsState extends Equatable {
         currentAlias,
         isLightMode,
         refreshSeconds,
+        alwaysFullScreen,
       ];
 
   SettingsState copyWith({
@@ -112,12 +115,14 @@ final class SettingsState extends Equatable {
     String? currentAlias,
     bool? isLightMode,
     int? refreshSeconds,
+    bool? alwaysFullScreen,
   }) {
     return SettingsState(
       connections: connections?.toList(growable: false) ?? this.connections,
       currentAlias: currentAlias ?? this.currentAlias,
       isLightMode: isLightMode ?? this.isLightMode,
       refreshSeconds: refreshSeconds ?? this.refreshSeconds,
+      alwaysFullScreen: alwaysFullScreen ?? this.alwaysFullScreen,
     );
   }
 
@@ -127,6 +132,7 @@ final class SettingsState extends Equatable {
         'currentAlias': currentAlias,
         'isLightMode': isLightMode,
         'refreshSeconds': refreshSeconds,
+        'alwaysFullScreen': alwaysFullScreen,
       };
 
   factory SettingsState.fromJson(Map<String, dynamic> json) => SettingsState(
@@ -140,5 +146,6 @@ final class SettingsState extends Equatable {
         currentAlias: json['currentAlias'] as String? ?? '',
         isLightMode: json['isLightMode'] as bool? ?? true,
         refreshSeconds: json['refreshSeconds'] as int? ?? 30,
+        alwaysFullScreen: json['alwaysFullScreen'] as bool? ?? false,
       );
 }

@@ -17,6 +17,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           currentAlias: '',
           isLightMode: false,
           refreshSeconds: 60,
+          alwaysFullScreen: false,
         )) {
     _loadState();
   }
@@ -42,6 +43,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
 
   Future<void> setTheme(bool lightMode) async {
     state = state.copyWith(isLightMode: lightMode);
+    _saveState();
+  }
+
+  Future<void> setAlwaysFullScreen(bool fullScreen) async {
+    state = state.copyWith(alwaysFullScreen: fullScreen);
     _saveState();
   }
 
