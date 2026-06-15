@@ -8,6 +8,48 @@ class SearchNotifier extends StateNotifier<SearchState> {
 
   SearchNotifier(this.ref) : super(const SearchInitial());
 
+  Map<String, String> _parseFilters(String query) {
+    final filters = <String, String>{};
+    final parts = query.trim().split('|');
+    var searchTerm = '';
+
+    // Type filters that don't consume the search term
+    final typeFilters = ['host', 'service', 'connection'];
+
+    for (final part in parts) {
+      final trimmed = part.trim();
+      if (trimmed.isEmpty) continue;
+
+      if (trimmed.contains(':')) {
+        final filterParts = trimmed.split(':');
+        if (filterParts.length >= 2) {
+          final key = filterParts[0].trim().toLowerCase();
+          final value = filterParts.sublist(1).join(':').trim();
+          
+          // Type filters don't consume the search term
+          if (typeFilters.contains(key)) {
+            filters[key] = ''; // Type filters have no value
+            // Add the value as a search term
+            if (searchTerm.isNotEmpty) searchTerm += '|';
+            searchTerm += value;
+          } else {
+            // Value filters consume the value
+            filters[key] = value;
+          }
+        }
+      } else {
+        if (searchTerm.isNotEmpty) searchTerm += '|';
+        searchTerm += trimmed;
+      }
+    }
+
+    if (searchTerm.isNotEmpty) {
+      filters['term'] = searchTerm;
+    }
+
+    return filters;
+  }
+
   Future<void> search(String query) async {
     if (!mounted) return;
 
@@ -21,45 +63,114 @@ class SearchNotifier extends StateNotifier<SearchState> {
     state = SearchLoading(query: query);
 
     final settings = ref.read(settingsProvider);
+    final filters = _parseFilters(query);
 
     var hosts = <String, Set<cmk_api.Host>>{};
     var services = <String, Set<cmk_api.Service>>{};
 
-    final querySplit = query.split('|');
+    // Filter by connection if specified
+    var aliasesToSearch = settings.connections.map((c) => c.alias).toList();
+    if (filters.containsKey('connection')) {
+      final connectionFilter = filters['connection']!.toLowerCase();
+      aliasesToSearch = aliasesToSearch
+          .where((alias) => alias.toLowerCase().contains(connectionFilter))
+          .toList();
+    }
 
-    for (final part in querySplit) {
-      if (part.isEmpty) continue;
+    // Determine what to search
+    final searchHosts = !filters.containsKey('service');
+    final searchServices = !filters.containsKey('host');
 
-      for (var alias in settings.connections.map((c) => c.alias)) {
-        final client = await ref.read(clientProvider(alias).future);
-        final clientState = ref.read(clientStateProvider(alias));
+    // Get search term
+    final searchTerm = filters['term'] ?? '';
 
-        if (!mounted) return;
+    for (final alias in aliasesToSearch) {
+      final client = await ref.read(clientProvider(alias).future);
+      final clientState = ref.read(clientStateProvider(alias));
 
-        if (clientState.value != cmk_api.ConnectionState.connected) {
-          continue;
+      if (!mounted) return;
+
+      if (clientState.value != cmk_api.ConnectionState.connected) {
+        continue;
+      }
+
+      try {
+        // Build host filters
+        var hostFilters = <String>[];
+        if (searchTerm.isNotEmpty) {
+          // Use OR for multiple search fields when searching by term
+          final searchOr = [
+            '{"op": "~~", "left": "name", "right": "$searchTerm"}',
+            '{"op": "~~", "left": "alias", "right": "$searchTerm"}',
+            '{"op": "~~", "left": "address", "right": "$searchTerm"}',
+          ];
+          hostFilters.add('{"op": "or", "expr": [${searchOr.join(',')}]}');
+        }
+        if (filters.containsKey('alias')) {
+          final aliasTerm = filters['alias'];
+          hostFilters.add('{"op": "~~", "left": "alias", "right": "$aliasTerm"}');
+        }
+        if (filters.containsKey('state')) {
+          final stateValue = filters['state'];
+          hostFilters.add('{"op": "=", "left": "state", "right": "$stateValue"}');
+        }
+        if (filters.containsKey('acked')) {
+          final acked = filters['acked']?.toLowerCase() == 'true';
+          hostFilters.add('{"op": "=", "left": "acknowledged", "right": $acked}');
         }
 
-        try {
-          final hostsResult = await client.getApiHosts(
-              filter: ['{"op": "~~", "left": "name", "right": "$part"}']);
-          final servicesResult = await client.getApiServices(filter: [
-            '{"op": "~~", "left": "description", "right": "$part"}'
-          ]);
+        // Build service filters
+        var serviceFilters = <String>[];
+        if (searchTerm.isNotEmpty) {
+          // Use OR for multiple search fields when searching by term
+          final searchOr = [
+            '{"op": "~~", "left": "description", "right": "$searchTerm"}',
+            '{"op": "~~", "left": "host_name", "right": "$searchTerm"}',
+          ];
+          serviceFilters.add('{"op": "or", "expr": [${searchOr.join(',')}]}');
+        }
+        if (filters.containsKey('alias')) {
+          final aliasTerm = filters['alias'];
+          serviceFilters.add('{"op": "~~", "left": "host_name", "right": "$aliasTerm"}');
+        }
+        if (filters.containsKey('state')) {
+          final stateValue = filters['state'];
+          serviceFilters.add('{"op": "=", "left": "state", "right": "$stateValue"}');
+        }
+        if (filters.containsKey('acked')) {
+          final acked = filters['acked']?.toLowerCase() == 'true';
+          serviceFilters.add('{"op": "=", "left": "acknowledged", "right": $acked}');
+        }
+
+        // Fetch hosts
+        if (searchHosts) {
+          final hostsFilter = hostFilters.isNotEmpty
+              ? <String>['{"op": "and", "expr": [${hostFilters.join(',')}]}']
+              : <String>[];
+          final hostsResult = await client.getApiHosts(filter: hostsFilter);
 
           if (hosts.containsKey(alias)) {
             hosts[alias]!.addAll(hostsResult);
           } else {
             hosts[alias] = hostsResult.toSet();
           }
+        }
+
+        // Fetch services
+        if (searchServices) {
+          final servicesFilter = serviceFilters.isNotEmpty
+              ? <String>['{"op": "and", "expr": [${serviceFilters.join(',')}]}']
+              : <String>[];
+          final servicesResult = await client.getApiServices(filter: servicesFilter);
+
           if (services.containsKey(alias)) {
             services[alias]!.addAll(servicesResult);
           } else {
             services[alias] = servicesResult.toSet();
           }
-        } on cmk_api.NetworkException {
-          // Ignore.
         }
+      } on cmk_api.NetworkException {
+        // Ignore.
       }
     }
 

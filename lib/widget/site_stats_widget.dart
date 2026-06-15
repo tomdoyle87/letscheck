@@ -6,6 +6,8 @@ import 'package:checkmk_api/checkmk_api.dart' as cmk_api;
 
 import 'package:letscheck/providers/connection_data/connection_data_state.dart';
 import 'package:letscheck/providers/providers.dart';
+import 'package:letscheck/providers/params.dart';
+import 'package:letscheck/widget/custom_search_delegate.dart';
 import 'package:letscheck/widget/site_stats_number_widget.dart';
 
 class SiteStatsWidget extends ConsumerWidget {
@@ -126,11 +128,48 @@ class SiteStatsWidget extends ConsumerWidget {
                   children: [
                     IconButton(
                       onPressed: () {
+                        showSearch(context: context, delegate: CustomSearchDelegate());
+                      },
+                      tooltip: 'Search',
+                      icon: Icon(Icons.search,
+                          size: 20,
+                          color: Colors.green),
+                    ),
+                    IconButton(
+                      onPressed: () async {
+                        // Reconnect to the server
+                        final client = await ref.read(clientProvider(alias).future);
+                        await client.connect();
+                      },
+                      tooltip: 'Reconnect',
+                      icon: Icon(Icons.link,
+                          size: 20,
+                          color: clientState.valueOrNull ==
+                                  cmk_api.ConnectionState.connected
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.red),
+                    ),
+                    IconButton(
+                      onPressed: () {
                         context.push('/settings/connection/$alias');
                       },
                       tooltip: 'Edit connection Details',
                       icon: Icon(Icons.settings_input_component,
-                          size: 14,
+                          size: 20,
+                          color: clientState.valueOrNull ==
+                                  cmk_api.ConnectionState.connected
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.red),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        // Force refresh by calling refresh methods on the notifiers
+                        ref.read(connectionDataProvider(alias).notifier).refresh();
+                        ref.read(hostsProvider(AliasAndFilterParams(alias: alias, filter: [])).notifier).refresh();
+                      },
+                      tooltip: 'Refresh',
+                      icon: Icon(Icons.refresh,
+                          size: 20,
                           color: clientState.valueOrNull ==
                                   cmk_api.ConnectionState.connected
                               ? Theme.of(context).colorScheme.primary

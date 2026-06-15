@@ -3,7 +3,6 @@ import 'dart:io' if (kIsWeb) 'package:web/web.dart' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_expandable_fab/flutter_expandable_fab.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:talker_flutter/talker_flutter.dart';
@@ -111,44 +110,13 @@ class SlimLayout extends ConsumerWidget {
     return Scaffold(
       key: _scaffoldKey,
       drawer: drawer,
-      floatingActionButtonLocation: ExpandableFab.location,
-      floatingActionButton: ExpandableFab(
-        openButtonBuilder: RotateFloatingActionButtonBuilder(
-          child: const Icon(Icons.add),
-        ),
-        // type: ExpandableFabType.up,
-        childrenAnimation: ExpandableFabAnimation.none,
-        // distance: 70,
-        children: [
-          FloatingActionButton.small(
-            heroTag: null,
-            onPressed: () async {
-              context.push('/settings');
-            },
-            child: const Icon(Icons.settings),
-          ),
-          FloatingActionButton.small(
-            heroTag: null,
-            onPressed: () async {
-              await refreshAction(context, ref);
-            },
-            child: const Icon(Icons.refresh),
-          ),
-          if (kDebugMode)
-            FloatingActionButton.small(
-              heroTag: null,
-              onPressed: () async {
-                context.push('/logs');
-              },
-              child: const Icon(Icons.list),
-            ),
-          FloatingActionButton.small(
-            heroTag: null,
-            onPressed: () =>
-                showSearch(context: context, delegate: CustomSearchDelegate()),
-            child: const Icon(Icons.search),
-          ),
-        ],
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      floatingActionButton: FloatingActionButton.small(
+        heroTag: null,
+        onPressed: () async {
+          context.push('/settings');
+        },
+        child: const Icon(Icons.settings),
       ),
       appBar: AppBar(
         elevation: 0.0,

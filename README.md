@@ -18,6 +18,8 @@ This fork includes the following enhancements:
 - Host page features custom folder ordering that persists across sessions, with a "Collapse all" button to close all expanded folders
 - Services page automatically uses your customized folder order from the hosts page
 - Folders on the services page always start collapsed for a fresh view each visit
+- Updated cleaner interface
+- Updated Custom search
 
 ---
 

@@ -60,6 +60,10 @@ class HostsNotifier extends StateNotifier<HostsState> {
     }
   }
 
+  Future<void> refresh() async {
+    await _fetchData();
+  }
+
   void _startRefreshTimer() {
     _refreshTimer?.cancel();
     final settings = ref.read(settingsProvider);

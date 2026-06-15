@@ -80,6 +80,10 @@ class ConnectionDataNotifier extends StateNotifier<ConnectionDataState> {
     }
   }
 
+  Future<void> refresh() async {
+    await _fetchData();
+  }
+
   Future<void> fetchComments(Set<int> ids) async {
     final client = await ref.read(clientProvider(alias).future);
 

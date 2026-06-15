@@ -259,10 +259,13 @@ class _AppState extends ConsumerState<App> with TrayListener, WindowListener {
   Future<void> onTrayMenuItemClick(MenuItem menuItem) async {
     if (menuItem.key == 'show_window' || menuItem.key == 'show') {
       await windowManager.show();
+      await Future.delayed(const Duration(milliseconds: 200));
+      await windowManager.focus();
       await Future.delayed(const Duration(milliseconds: 100));
       await windowManager.focus();
       final settings = ref.read(settingsProvider);
       if (settings.alwaysFullScreen) {
+        await Future.delayed(const Duration(milliseconds: 100));
         await windowManager.maximize();
       }
     } else if (menuItem.key == 'exit_app' || menuItem.key == 'exit') {
