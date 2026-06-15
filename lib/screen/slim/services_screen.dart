@@ -69,6 +69,15 @@ class ServicesScreenState extends ConsumerState<ServicesScreen> {
       case 'all':
         title = "Services";
         break;
+      case 'problems':
+        title = "Services warnings";
+        break;
+      case 'unhandled':
+        title = "Services critical issues";
+        break;
+      case 'stale':
+        title = "Services unknown";
+        break;
       default:
         title = "Services ${widget.filter}";
     }

@@ -66,6 +66,15 @@ class HostsScreenState extends ConsumerState<HostsScreen> {
       case 'all':
         title = "Hosts";
         break;
+      case 'problems':
+        title = "Hosts warnings";
+        break;
+      case 'unhandled':
+        title = "Hosts critical issues";
+        break;
+      case 'stale':
+        title = "Hosts unknown";
+        break;
       default:
         title = "Hosts ${widget.filter}";
     }

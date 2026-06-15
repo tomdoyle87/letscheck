@@ -36,34 +36,6 @@ class ConnectionScreenState extends ConsumerState<ConnectionScreen> {
         ConnectionDataInitial() => Container(),
         ConnectionDataLoaded(unhServices: final unhServices) => Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Row(
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        context.go('/conn/${widget.alias}/critical');
-                      },
-                      icon: const Icon(Icons.error, color: Colors.red),
-                      label: const Text('Critical'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red.shade100,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        context.go('/conn/${widget.alias}/warning');
-                      },
-                      icon: const Icon(Icons.warning, color: Colors.orange),
-                      label: const Text('Warning'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange.shade100,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
               SiteStatsWidget(
                 alias: widget.alias,
               ),

@@ -18,14 +18,6 @@ class SiteStatsWidget extends ConsumerWidget {
     final clientState = ref.watch(clientStateProvider(alias));
     final connectionData = ref.watch(connectionDataProvider(alias));
 
-    var hasFilters = false;
-    // for (var f in connection.filters.values) {
-    //   if (f) {
-    //     hasFilters = true;
-    //     break;
-    //   }
-    // }
-
     Widget statsWidget = Container();
 
     if (connectionData is ConnectionDataLoaded) {
@@ -33,7 +25,7 @@ class SiteStatsWidget extends ConsumerWidget {
       statsWidget = Padding(
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
         child: Column(children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             SiteStatsNumberWidget(
               caption: 'Hosts',
               num: stats.hosts.all,
@@ -42,6 +34,7 @@ class SiteStatsWidget extends ConsumerWidget {
                 context.push('/conn/$alias/hosts/all');
               },
             ),
+            SizedBox(width: 15),
             SiteStatsNumberWidget(
               caption: 'Warning',
               num: stats.hosts.warn,
@@ -50,6 +43,7 @@ class SiteStatsWidget extends ConsumerWidget {
                 context.push('/conn/$alias/hosts/problems');
               },
             ),
+            SizedBox(width: 15),
             SiteStatsNumberWidget(
               caption: 'Critical',
               num: stats.hosts.crit,
@@ -58,12 +52,9 @@ class SiteStatsWidget extends ConsumerWidget {
                 context.push('/conn/$alias/hosts/unhandled');
               },
             ),
-            SizedBox(
-              width: 54,
-            ),
           ]),
           SizedBox(height: 5),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
             SiteStatsNumberWidget(
               caption: 'Services',
               num: stats.services.all,
@@ -72,6 +63,7 @@ class SiteStatsWidget extends ConsumerWidget {
                 context.push('/conn/$alias/services/all');
               },
             ),
+            SizedBox(width: 8),
             SiteStatsNumberWidget(
               caption: 'Warning',
               num: stats.services.warn,
@@ -80,6 +72,7 @@ class SiteStatsWidget extends ConsumerWidget {
                 context.push('/conn/$alias/services/problems');
               },
             ),
+            SizedBox(width: 8),
             SiteStatsNumberWidget(
               caption: 'Critical',
               num: stats.services.crit,
@@ -88,6 +81,7 @@ class SiteStatsWidget extends ConsumerWidget {
                 context.push('/conn/$alias/services/unhandled');
               },
             ),
+            SizedBox(width: 8),
             SiteStatsNumberWidget(
               caption: 'Unknown',
               num: stats.services.unkn,
@@ -130,15 +124,6 @@ class SiteStatsWidget extends ConsumerWidget {
                 ),
                 Row(
                   children: [
-                    IconButton(
-                      onPressed: () {
-                        context.push('/error/404');
-                      },
-                      tooltip: hasFilters ? 'Edit' : 'Edit, no filters yet',
-                      icon: Icon(Icons.filter_list,
-                          size: 14,
-                          color: hasFilters ? Colors.yellow : Theme.of(context).colorScheme.primary),
-                    ),
                     IconButton(
                       onPressed: () {
                         context.push('/settings/connection/$alias');
