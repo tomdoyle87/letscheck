@@ -124,7 +124,9 @@ class ConnectionFormNotifier extends StateNotifier<ConnectionFormState> {
       final client = cmk_api.Client(
         () {
           final dio = Dio();
-          dio.interceptors.add(talkerDioLogger);
+          if (talkerDioLogger != null) {
+            dio.interceptors.add(talkerDioLogger);
+          }
           return dio;
         },
         cmk_api.ClientSettings(

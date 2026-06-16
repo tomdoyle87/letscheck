@@ -127,13 +127,12 @@ class SlimLayout extends ConsumerWidget {
       ),
       body: RefreshIndicator(
         onRefresh: () => refreshAction(context, ref),
-        child: TalkerWrapper(
-          talker: talker,
-          options: const TalkerWrapperOptions(
-            enableErrorAlerts: true,
-          ),
-          child: child,
-        ),
+        child: kDebugMode
+            ? TalkerWrapper(
+                talker: talker,
+                child: child,
+              )
+            : child, // Disable TalkerWrapper in release mode
       ),
     );
   }

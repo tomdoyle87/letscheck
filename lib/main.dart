@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, LicenseRegistry, LicenseEntryWithLineBreaks;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, LicenseRegistry, LicenseEntryWithLineBreaks;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -11,13 +11,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:tray_manager/src/helpers/sandbox.dart' show runningInSandbox;
+import 'package:talker/talker.dart';
+import 'package:talker_flutter/talker_flutter.dart';
 
 // Storage, Platform Specs, Locales, Logging & Debugging
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:talker/talker.dart';
 import 'package:talker_riverpod_logger/talker_riverpod_logger.dart';
 
 // Timezone imports
@@ -137,7 +138,11 @@ Future<void> main() async {
   await initializeDateFormatting(Intl.defaultLocale);
 
   // ---------------- LOGGING & RUNTIME SETUP ----------------
-  final talker = Talker(logger: TalkerLogger(formatter: ColoredLoggerFormatter()));
+  // Configure Talker based on build mode
+  // In release mode, use minimal logging to reduce noise and avoid syslog pollution
+  final talker = Talker(logger: TalkerLogger(
+    formatter: ColoredLoggerFormatter(),
+  ));
   
   JavascriptRuntimeWrapper? jsRuntime;
   try {
@@ -168,18 +173,20 @@ Future<void> main() async {
 
   // ---------------- APPLICATION INJECTION ----------------
   final container = ProviderContainer(
-    observers: [
-      TalkerRiverpodObserver(
-        settings: TalkerRiverpodLoggerSettings(
-          enabled: true,
-          printProviderAdded: true,
-          printProviderUpdated: false,
-          printProviderDisposed: true,
-          printProviderFailed: true,
-        ),
-        talker: talker,
-      ),
-    ],
+    observers: kDebugMode
+        ? [
+            TalkerRiverpodObserver(
+              settings: TalkerRiverpodLoggerSettings(
+                enabled: true,
+                printProviderAdded: true,
+                printProviderUpdated: false,
+                printProviderDisposed: true,
+                printProviderFailed: true,
+              ),
+              talker: talker,
+            ),
+          ]
+        : [], // Disable verbose Riverpod logging in release mode
     overrides: [
       talkerProvider.overrideWithValue(talker),
       sharedPreferencesProvider.overrideWithValue(prefs),

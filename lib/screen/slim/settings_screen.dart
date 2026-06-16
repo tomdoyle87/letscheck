@@ -1,6 +1,6 @@
 import 'dart:io' show Platform;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_settings_ui/flutter_settings_ui.dart';
@@ -218,9 +218,6 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
             title: Text('Misc'),
             tiles: [
               SettingsTile(
-                  title: Text('Terms of Service'),
-                  leading: Icon(Icons.description)),
-              SettingsTile(
                 title: Text('Open source licenses'),
                 leading: Icon(Icons.collections_bookmark),
                 onPressed: (ctx) async {
@@ -229,18 +226,19 @@ class SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
-          SettingsSection(
-            title: Text('Debug'),
-            tiles: [
-              SettingsTile(
-                title: Text('Logs'),
-                leading: Icon(Icons.list),
-                onPressed: (ctx) async {
-                  context.push('/logs');
-                },
-              ),
-            ],
-          ),          
+          if (kDebugMode)
+            SettingsSection(
+              title: Text('Debug'),
+              tiles: [
+                SettingsTile(
+                  title: Text('Logs'),
+                  leading: Icon(Icons.list),
+                  onPressed: (ctx) async {
+                    context.push('/logs');
+                  },
+                ),
+              ],
+            ),          
           CustomSettingsSection(
             child: Column(
               children: [

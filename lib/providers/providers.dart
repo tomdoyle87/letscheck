@@ -1,4 +1,5 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:letscheck/services/connectivity_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -27,7 +28,8 @@ final talkerProvider = Provider<Talker>((ref) {
   throw UnimplementedError('Initialize this provider in your app');
 });
 
-final talkerDioLoggerProvider = Provider<TalkerDioLogger>((ref) {
+final talkerDioLoggerProvider = Provider<TalkerDioLogger?>((ref) {
+  if (!kDebugMode) return null; // Disable HTTP logging in release mode
   return TalkerDioLogger(
     talker: ref.read(talkerProvider),
     settings: const TalkerDioLoggerSettings(
@@ -57,9 +59,9 @@ final clientProvider = FutureProvider.family<cmk_api.Client, String>((ref, alias
           receiveTimeout: const Duration(seconds: 5),
         ),
       );
-      dio.interceptors.add(
-        talkerDioLogger,
-      );
+      if (talkerDioLogger != null) {
+        dio.interceptors.add(talkerDioLogger);
+      }
       return dio;
     },
     cmk_api.ClientSettings(
